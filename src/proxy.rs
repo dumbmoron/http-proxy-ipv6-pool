@@ -1,8 +1,8 @@
 use hyper::{
+    Body, Client, Method, Request, Response, Server,
     client::HttpConnector,
     server::conn::AddrStream,
     service::{make_service_fn, service_fn},
-    Body, Client, Method, Request, Response, Server,
 };
 use rand::Rng;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs};
@@ -79,7 +79,7 @@ impl Proxy {
         A: AsyncRead + AsyncWrite + Unpin + ?Sized,
     {
         if let Ok(addrs) = addr_str.to_socket_addrs() {
-            for addr in addrs {
+            for addr in addrs.clone() {
                 let socket = TcpSocket::new_v6()?;
                 let bind_addr = get_rand_ipv6_socket_addr(self.ipv6, self.prefix_len);
                 if socket.bind(bind_addr).is_ok() {
@@ -88,6 +88,14 @@ impl Proxy {
                         tokio::io::copy_bidirectional(upgraded, &mut server).await?;
                         return Ok(());
                     }
+                }
+            }
+
+            for addr in addrs {
+                let socket = TcpSocket::new_v4()?;
+                if let Ok(mut server) = socket.connect(addr).await {
+                    tokio::io::copy_bidirectional(upgraded, &mut server).await?;
+                    return Ok(());
                 }
             }
         } else {
